@@ -1,0 +1,1354 @@
+---
+title: "NatEcolEvo_Analyses"
+author: "Eoghan Aston"
+date: "2025-02-05"
+output: html_document
+---
+
+```{r}
+
+library(plyr)
+library(tidyverse)
+library(brms)
+library(ggplot2)
+library(GGally)
+library(tidybayes)
+library(ggthemes)
+library(bayesplot)
+library(rstanarm) 
+library(insight)
+library(httr)
+library(emmeans)
+library(ggpubr)
+library(here)
+
+
+alldata    <- readRDS(here("Data", "alldata_full.RDS")) # Has dead/missing colonies removed and some extra growth bits
+deadorgone <- readRDS(here("Data", "deadorgone.RDS")) # Full dataset including colonies that were dead or missing in Year 2 
+
+```
+
+For each taxonomic group, subeset the data so model comparisons can be done afterwards. When this is done, run the model with the full dataset. 
+
+```{r Filter, clean and subset the data}
+
+
+
+alldata2 <- alldata %>% filter(!is.na(ubedmean)) %>% filter(!is.na(temp_mean)) %>% filter(!is.na(hard_coral_21)) %>% filter(!is.na(Turbidity_mean)) %>% filter(!is.na(rugosity)) %>% filter(!is.na(depth)) %>% as.data.frame() # Ensuring all datasets are the same length so they can be compared
+
+
+alldata <- alldata %>% mutate (monthlygrowth = ((Area_2022-Area_2021)/return_months), 
+                               yearlygrowth = monthlygrowth*12, #Adjustment to calculate growth rates over 12 months
+                               Area_2022_adjusted = Area_2021 + yearlygrowth, 
+                               log22 = log(Area_2022, base=exp(1)),
+                               log21 = log(Area_2021, base=exp(1))) %>%
+  filter(Area_2022_adjusted >= 0) %>% mutate (log22_adj = log(Area_2022, base = exp(1))) #natural log transform of size at year 2
+
+alldata2 <- alldata2 %>% mutate (monthlygrowth = ((Area_2022-Area_2021)/return_months), 
+                               yearlygrowth = monthlygrowth*12, #Adjustment to calculate growth rates over 12 months
+                               Area_2022_adjusted = Area_2021 + yearlygrowth, 
+                               log22 = log(Area_2022, base=exp(1)),
+                               log21 = log(Area_2021, base=exp(1))) %>%
+  filter(Area_2022_adjusted >= 0) %>% mutate (log22_adj = log(Area_2022, base = exp(1))) #natural log transform of size at year 2
+
+
+
+
+
+
+acor <- alldata2 %>% filter(Species == "Acor") 
+atab <- alldata2 %>% filter(Species == "Atab") 
+amil <- alldata2 %>% filter(Species == "Amil") 
+pmas <- alldata2 %>% filter(Species == "Pmas")
+goni <- alldata2 %>% filter(Species == "Gspp") 
+plat <- alldata2 %>% filter(Species == "Plat") 
+adgt <- alldata2 %>% filter(Species == "Adgt") 
+poci <- alldata2 %>% filter(Species == "Poci") 
+spis <- alldata2 %>% filter(Species == "Spis") 
+
+# Full datasets in each case for final models
+
+acorfull <- alldata %>% filter(Species == "Acor") 
+atabfull <- alldata %>% filter(Species == "Atab") 
+amilfull <- alldata %>% filter(Species == "Amil") 
+pmasfull <- alldata %>% filter(Species == "Pmas")
+gonifull <- alldata %>% filter(Species == "Gspp") 
+platfull <- alldata %>% filter(Species == "Plat") 
+adgtfull <- alldata %>% filter(Species == "Adgt") 
+pocifull <- alldata %>% filter(Species == "Poci") 
+spisfull <- alldata %>% filter(Species == "Spis") 
+
+
+
+
+```
+
+A set of formulae with different interactions for model selection. Where there is no significant difference between each model, select the simplest one
+
+
+```{r Prepare formulae for loops}
+
+formulas = c("log22 ~ log21  + log21:Turbidity_mean  + log21:ubedmean + log21:temp_mean + log21:depth + log21:rugosity + (1|reef/site)",
+             "log22 ~ log21  + log21:Turbidity_mean  + log21:ubedmean + log21:temp_mean + log21:depth + (1|reef/site)",
+             "log22 ~ log21  + log21:Turbidity_mean  + log21:ubedmean + log21:temp_mean + log21:rugosity + (1|reef/site)",
+             "log22 ~ log21  + log21:ubedmean + log21:temp_mean + (1|reef/site)",
+             "log22 ~ log21  + log21:ubedmean + log21:Turbidity_mean + (1|reef/site)",
+             "log22 ~ log21  + log21:temp_mean + log21:Turbidity_mean + (1|reef/site)",
+             "log22 ~ log21  + log21:temp_mean + (1|reef/site)", 
+             "log22 ~ log21  + log21:Turbidity_mean + (1|reef/site)", 
+             "log22 ~ log21  + log21:ubedmean + (1|reef/site)",
+             "log22 ~ log21  + log21:depth + (1|reef/site)",
+             "log22 ~ log21  + log21:rugosity + (1|reef/site)",
+             "log22 ~ log21  + log21:temp_mean + log21:depth + log21:rugosity + (1|reef/site)"
+            )
+
+datasets <- list(acor, atab, amil, adgt, spis, poci, pmas, plat, goni)
+```
+
+Build all the models (takes some time but it is generative being bayesian)
+
+```{r run each dataset through loop}
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= acor  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Acor_model_", i, ".RDS"))
+)
+
+}
+
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= adgt  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Adgt_model_", i, ".RDS"))
+)
+
+}
+
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= amil  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Amil_model_", i, ".RDS"))
+)
+
+}
+
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= atab  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+saveRDS(
+  model, 
+  file = here::here("Data", paste0("Atab_model_", i, ".RDS"))
+)
+
+}
+
+
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= goni  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Goni_model_", i, ".RDS"))
+)
+
+}
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= plat  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Plat_model_", i, ".RDS"))
+)
+
+}
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= pmas  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Pmas_model_", i, ".RDS"))
+)
+
+}
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= poci  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Poci_model_", i, ".RDS"))
+)
+
+}
+
+for (i in 1:length(formulas)) {
+
+model = brm(formulas[i],
+
+      data= spis  %>% droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+      
+     saveRDS(
+  model, 
+  file = here::here("Data", paste0("Spis_model_", i, ".RDS"))
+)
+
+}
+
+
+
+```
+
+```{r run the null models}
+
+
+for (i in 1:length(datasets)) {
+  model = brm(
+    formula = log22 ~ log21 + (1 | reef/site),
+    data = datasets[[i]] %>% droplevels(),
+    prior = c(
+      prior(normal(0, 10), class = Intercept),
+      prior(normal(1, 2), class = b)
+    ),
+    iter = 5000,
+    warmup = 2000,
+    chains = 4,
+    cores = 4,
+    thin = 5,
+    seed = 13,
+    sample_prior = 'yes',
+    family = gaussian,
+    control = list(adapt_delta = 0.99)
+  )
+
+  saveRDS(
+  model, 
+  file = here::here("Data", paste0("Null_model_", i, ".RDS"))
+)
+}
+
+
+```
+
+```{r load models}
+
+#Ensure to change the name of the models to the corresponding taxnomic group
+
+model1 <- readRDS("Goni_model_1.RDS")
+model2 <- readRDS("Goni_model_2.RDS")
+model3 <- readRDS("Goni_model_3.RDS")
+model4 <- readRDS("Goni_model_4.RDS")
+model5 <- readRDS("Goni_model_5.RDS")
+model6 <- readRDS("Goni_model_6.RDS")
+model7 <- readRDS("Goni_model_7.RDS")
+model8 <- readRDS("Goni_model_8.RDS")
+model9 <- readRDS("Goni_model_9.RDS")
+model10 <- readRDS("Goni_model_10.RDS")
+model11 <- readRDS("Goni_model_11.RDS")
+model12 <- readRDS("Goni_model_12.RDS")
+model13 <- readRDS("Null_model_Goni.RDS")
+
+```
+
+```{r loo comparisons}
+
+models <- list(
+  model1 = model1,
+  model2 = model2,
+  model3 = model3,
+  model4 = model4,
+  model5 = model5,
+  model6 = model6,
+  model7 = model7,
+  model8 = model8,
+  model9 = model9,
+  model10 = model10,
+  model11 = model11,
+  model12 = model12,
+  model13 = model13
+)
+
+# Apply `loo` to each model
+loo_list <- lapply(models, loo)
+
+# Use `loo_compare` with named models
+loo_comparison <- loo_compare(loo_list)
+
+# Convert the results to a tibble and preserve names
+loo_comparison_tibble <- as_tibble(loo_comparison, rownames = "model")
+
+# Print the tibble
+print(loo_comparison_tibble)
+
+write.csv(loo_comparison_tibble , file = "goni_modelcomparison.csv") #Ensure to rename with each iteration
+
+```
+
+
+
+After checking the 
+
+```{r Run the optimal model for all with as much data as possible}
+
+
+
+acoropt = brm(log22_adj ~ log21  + log21:temp_mean + (1|reef/site), 
+
+      data= acorfull %>% 
+      #filter(Area_2021<2500)  %>% 
+      filter(Area_2021>20) %>%
+        droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+adgtopt = brm(log22_adj ~ log21 + (1|reef/site), 
+
+      data= adgtfull  %>% 
+      #  filter(Area_2021<1000)  %>% 
+        filter(Area_2021>20) %>% 
+        droplevels(),
+      prior = c(prior(normal(0, 2), class = Intercept),
+                prior(normal(1, 2), class = b)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+      
+amilopt = brm(log22_adj ~ log21  + log21:temp_mean + (1|reef/site), 
+
+      data= amilfull  %>% 
+      #  filter(Area_2021< 2000) %>%
+        filter(Area_2021>20) %>%  
+        droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+
+atabopt = brm(log22_adj ~ log21  + log21:temp_mean + (1|reef/site), 
+
+      data= atabfull %>% 
+     #   filter(Area_2021<2000) %>%
+        filter(Area_2021>20) %>%  
+        droplevels(),
+      prior = c(prior(normal(0, 2), class = Intercept),
+                prior(normal(0, 1), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))      
+
+
+goniopt = brm(log22_adj ~ log21 + (1|reef/site), 
+
+      data= gonifull  %>% 
+      #  filter(Area_2021>20) %>% 
+        droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b),
+                prior(cauchy(0, 2), class = sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+platopt = brm(log22_adj ~ log21 + (1|reef/site), 
+
+      data= platfull  %>% 
+      #  filter(Area_2021<2500) %>%
+        filter(Area_2021>20) %>%  
+        droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+pociopt = brm(log22_adj ~ log21  + log21:ubedmean +  (1|reef/site), 
+
+      data= pocifull  %>% 
+    #    filter(Area_2021 < 1100) %>%
+        filter(Area_2021>20) %>% 
+        droplevels(),
+      prior = c(prior(normal(0, 1), class = Intercept),
+                prior(normal(1, 1), class = b),
+                prior(cauchy(0,2), class=sd)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+pmasopt = brm(log22_adj ~ log21 + (1|reef/site), 
+
+      data= pmasfull  %>% filter(Area_2021<5000) %>% 
+     #   filter(Area_2021>20) %>% 
+        filter (AreaChange >-1500) %>% 
+        droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+ spisopt = brm(log22_adj ~ log21 + (1|reef/site), 
+
+      data= spisfull  %>% 
+     #   filter(Area_2021<2000) %>%
+        filter(Area_2021>20) %>% 
+        droplevels(),
+      prior = c(prior(normal(0, 10), class = Intercept),
+                prior(normal(1, 2), class = b)),
+      iter = 5000, warmup = 2000, chains = 4, cores = 4, thin = 5,
+      seed = 13, sample_prior = 'yes',
+          family = gaussian, control = list(adapt_delta = 0.99))
+
+```
+
+```{r save the new improved final models}
+
+saveRDS(goniopt, file = here::here("Data", "goniopt.RDS"))
+saveRDS(pmasopt, file = here::here("Data", "pmasopt.RDS"))
+saveRDS(platopt, file = here::here("Data", "platopt.RDS"))
+saveRDS(atabopt, file = here::here("Data", "atabopt.RDS"))
+saveRDS(acoropt, file = here::here("Data", "acoropt.RDS"))
+saveRDS(amilopt, file = here::here("Data", "amilopt.RDS"))
+saveRDS(adgtopt, file = here::here("Data", "adgtopt.RDS"))
+saveRDS(spisopt, file = here::here("Data", "spisopt.RDS"))
+saveRDS(pociopt, file = here::here("Data", "pociopt.RDS"))
+
+```
+
+```{r Load Optimal models - skip to here if models selected and saved}
+
+goniopt <- readRDS(here("Data", "goniopt.RDS"))
+pmasopt <- readRDS(here("Data", "pmasopt.RDS"))
+platopt <- readRDS(here("Data", "platopt.RDS"))
+atabopt <- readRDS(here("Data", "atabopt.RDS"))
+acoropt <- readRDS(here("Data", "acoropt.RDS"))
+amilopt <- readRDS(here("Data", "amilopt.RDS"))
+adgtopt <- readRDS(here("Data", "adgtopt.RDS"))
+spisopt <- readRDS(here("Data", "spisopt.RDS"))
+pociopt <- readRDS(here("Data", "pociopt.RDS"))
+```
+
+
+```{r Tabular Acopora plots}
+
+atab <-alldata %>% filter(Species =="Atab") %>% filter (Area_2021 >20) 
+  
+newdata <- with(atab, list(log21 = seq(min(log21), max(log21), length=28),
+                           temp_mean = seq(min(25), max(28.5), length=2),
+                              Species = factor(unique(Species))))
+
+growth <- emmeans(atabopt, ~log21|temp_mean, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Acropora tabular") %>% mutate(temp_mean=factor(temp_mean))
+
+colours_tab <- c("blue4", "gold")
+
+growthplottabular <-
+  ggplot(data = growth, aes(y = emmean, x = log21, colour=temp_mean)) +
+  geom_ribbon(stat = "identity", aes(ymin=lower.HPD,ymax=upper.HPD, fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line(stat="identity") + 
+  theme_classic() +
+  ylab(bquote("log size at time t "[1])) + 
+  scale_colour_manual(values = colours_tab) + 
+  scale_fill_manual(values = colours_tab) + 
+  xlab (bquote("log size at time t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) +
+  coord_cartesian(xlim = c(3,10), ylim = c(3,10))
+growthplottabular
+
+growthplottabularnatural <- growth %>% 
+  filter(Species == "Acropora tabular") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+  geom_ribbon(aes(ymin=exp(lower.HPD), ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() +
+  theme_classic() + 
+  scale_colour_manual(values = colours_tab) + 
+  scale_fill_manual(values = colours_tab) + 
+  ylab(bquote("size at time t "[1])) + 
+  xlab(bquote("size at time t "[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope = 1)+ 
+  coord_cartesian(xlim = c(0,20000), ylim = c(0,20000))
+
+growthplottabularnatural
+
+growthplottabularnatural <- growth %>% filter(Species == "Acropora tabular") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() +
+  theme_classic() + 
+  scale_colour_manual(values = colours_tab) + 
+  scale_fill_manual(values = colours_tab) +
+  ylab(bquote("size at time t "[1])) + 
+  xlab (bquote("size at time t"[0])) +
+  ggplot2::geom_abline(intercept = 0, slope=1)
+
+growthplottabularnatural
+
+rawplotatab <- atabfull %>% filter(Area_2021>20) %>% ggplot(aes(x=log21, y= log22, colour = temp_mean)) + 
+  geom_point(alpha = 0.5) + 
+  scale_colour_gradient(low = "blue4", high = "gold") +
+  geom_abline(slope = 1) +
+  theme_classic() + coord_cartesian(xlim = c(3,10), ylim = c(3,10))
+
+rawplotatab
+
+rawplotatab_natural <- atabfull %>% filter(Area_2021>20) %>% ggplot(aes(x=exp(log21), y= exp(log22), colour = temp_mean)) + 
+  geom_point(alpha = 0.5) + 
+  scale_colour_gradient(low = "blue4", high = "gold") +
+  geom_abline(slope = 1) +
+  theme_classic() + coord_cartesian(xlim = c(0,10000), ylim = c(0,10000))
+
+rawplotatab_natural
+
+composite_tabular <- ggarrange(growthplottabular , rawplotatab)
+composite_tabular
+
+insert_natural <- growth %>% filter(Species == "Acropora tabular") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_tab) + scale_fill_manual(values = colours_tab) + ylab(bquote("size at time t "[1])) + xlab (bquote("size at time t"[0])) + ggplot2::geom_abline(intercept = 0, slope=1) + coord_cartesian(xlim = c(0,10000), ylim = c(0,10000))
+
+insert_natural
+
+comp <- ggarrange (insert_natural, rawplotatab)
+
+#ggsave("atab_insert_natural.pdf", comp, height =4 , width =8 )
+#ggsave("tabular_natural.pdf", growthplottabularnatural, height = 3.5, width =6.5)
+#ggsave("tabular_natural_insert.pdf", insert_natural, height = 3, width =5)
+#ggsave("tabular_modelandraw.pdf", composite_tabular, height = 4, width = 8)
+
+```
+
+
+
+
+
+```{r Acropora digitate}
+
+#conditional_effects(Adgt_model)
+
+#Includes interaction between temp and size, as previously
+
+
+adgt <-alldata %>% filter(Species =="Adgt")  %>% filter(Area_2021>20)
+  
+newdata <- with(adgt, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species))))
+
+growth <- emmeans(adgtopt, ~log21, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Acropora digitate") 
+
+
+growthplotadgt <- growth %>% filter(Species == "Acropora digitate") %>%
+  ggplot(aes(y = emmean, x = log21)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD), alpha = 0.3, colour = NA) + 
+  geom_line() + 
+  theme_classic() +
+  ylab(bquote("log area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("log area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) + 
+  geom_point(data = adgtfull %>% filter(Area_2021 >20), mapping = aes(x=log21, y=log22), alpha = 0.1) 
+
+growthplotadgt
+
+growthplotadgtnatural <- growth %>% filter(Species == "Acropora digitate") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21))) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line() +
+  theme_classic() +
+  ylab(bquote("Area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("Area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1)+
+  geom_point(data = adgt, mapping = aes(x = exp(log21), y = exp(log22)), alpha = 0.1)
+
+growthplotadgtnatural
+
+adgtboth <- ggarrange(growthplotadgt,growthplotadgtnatural)
+
+#ggsave("adgtboth.pdf", adgtboth, height = 4, width = 8)
+
+
+#ggsave("adgt_natural.pdf", growthplotadgtnatural, height = 3.5, width =6.5)
+#ggsave("adgt_logscale.pdf", growthplotadgt, height = 3, width =5)
+
+```
+
+```{r Acropora coymbose}
+
+#summary(Acor_model)
+Acor_model <- acoropt
+
+acor <-alldata %>% filter(Species =="Acor") %>% filter(Area_2021>20)
+
+newdata <- with(acor, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species)), temp_mean = seq(min(25), max(28), length=2)))
+
+growth <- emmeans(acoropt, ~log21|temp_mean, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Acropora corymbose") %>% mutate(temp_mean=factor(temp_mean))
+
+colours_temp <- c("blue4", "gold")
+
+growthplotacor <- growth %>% filter(Species == "Acropora corymbose") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + 
+  theme_classic() +
+  scale_colour_manual(values = colours_temp) +
+  scale_fill_manual(values = colours_temp) +
+  ylab(bquote("log size at time t "[1])) + 
+   xlab(bquote("log size at time t "[1])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1)  + coord_cartesian(xlim=c(0,12500), ylim = c(0,12500))
+
+growthplotacor
+
+growthplotacornatural <- growth %>% filter(Species == "Acropora corymbose") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_temp) + scale_fill_manual(values = colours_temp) + ylab(bquote("size at time t "[1])) + xlab (bquote("size at time t"[0]))  + ggplot2::geom_abline(intercept = 0, slope=1)
+
+growthplotacornatural
+
+
+insert_acor <- growth %>% filter(Species == "Acropora corymbose") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_tab) + scale_fill_manual(values = colours_tab) + ylab(bquote("size at time t "[1])) + xlab (bquote("size at time t"[0]))  + ggplot2::geom_abline(intercept = 0, slope=1) +
+  coord_cartesian(xlim=c(0,3000), ylim=c(0,3000)) 
+
+insert_acor
+
+rawplotacor <- acorfull %>% filter( Area_2021>20) %>% ggplot(aes(x=exp(log21), y= exp(log22), colour = temp_mean)) + 
+  geom_point(alpha = 0.5) + 
+  scale_colour_gradient(low = "blue4", high = "gold") +
+  geom_abline(slope = 1) +
+  theme_classic() +
+  ylab(bquote("log size at time t "[1])) + 
+  xlab(bquote("log size at time t "[1])) + coord_cartesian(xlim=c(0,12500), ylim = c(0,12500))
+
+acorcomposite <- ggpubr::ggarrange(growthplotacor, insert_acor)
+acorcomposite
+
+#ggsave("acor_natural.pdf", growthplotacornatural, height = 3.5, width =6.5)
+#ggsave("acor_insert.pdf", insert_acor, height = 3, width =5)
+#ggsave("acor_modelandraw_nat.pdf",acorcomposite, height = 4, width = 8)
+
+acor %>% ggplot(aes(x=log(Area_2021), y=log(Area_2022), colour=temp_mean)) + geom_point() + geom_abline(slope=1) 
+
+
+
+```
+```{r Acropora millepora}
+
+
+
+amil <-alldata %>% filter(Species =="Amil") %>%  filter(Area_2021>20)
+  
+
+newdata <- with(amil, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species)), temp_mean = seq(min(25), max(28), length=2)))
+
+growth <- emmeans(amilopt, ~log21|temp_mean, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Acropora millepora") %>% mutate(temp_mean=factor(temp_mean))
+
+colours_temp <- c("blue4", "gold")
+
+growthplotamil <- growth %>% filter(Species == "Acropora millepora") %>%
+  ggplot(aes(y = emmean, x = log21, colour = temp_mean)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD, fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + 
+  theme_classic() + 
+  scale_colour_manual(values = colours_temp) +
+  scale_fill_manual(values = colours_temp) + 
+  ylab(bquote('log size at t1'~ (cm^2)))+
+  xlab(bquote('log size at t0'~ (cm^2))) +  
+  coord_cartesian(xlim = c(3,8.5), ylim = c(3,8.5)) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) 
+
+growthplotamil
+
+growthplotamilnatural <- growth %>% filter(Species == "Acropora millepora") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_temp) + scale_fill_manual(values = colours_temp) + ylab(bquote("size at time t "[1])) + xlab (bquote("size at time t"[0]))  + ggplot2::geom_abline(intercept = 0, slope=1)
+
+growthplotamilnatural
+
+
+insert_amil <- growth %>% filter(Species == "Acropora millepora") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = temp_mean)) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=temp_mean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_tab) + scale_fill_manual(values = colours_tab) + ylab(bquote("size at time t "[1])) + xlab (bquote("size at time t"[0]))  + ggplot2::geom_abline(intercept = 0, slope=1) +
+  coord_cartesian(xlim=c(0,3000), ylim=c(0,3000)) 
+
+insert_amil
+
+rawplotamil <- amilfull %>% filter( Area_2021>20) %>% ggplot(aes(x=log21, y= log22, colour = temp_mean)) + 
+  geom_point(alpha = 0.5) + 
+  scale_colour_gradient(low = "blue4", high = "gold") +
+  geom_abline(slope = 1) +
+  theme_classic() +
+  coord_cartesian(xlim = c(3,8.5), ylim = c(3,8.5)) + 
+  ylab(bquote('log size at t1'~ (cm^2)))+
+  xlab(bquote('log size at t0'~ (cm^2))) 
+
+rawplotamil
+
+amil_comp <- ggpubr::ggarrange(growthplotamil, rawplotamil)
+amil_comp2 <- ggpubr::ggarrange(insert_amil, rawplotamil)
+
+#ggsave("amil_natural.pdf", growthplotamilnatural, height = 3.5, width =6.5)
+#ggsave("amil_insert.pdf", insert_amil, height = 3, width =5)
+
+#ggsave("amil_modelandraw.pdf",amil_comp, height = 4, width = 8)
+#ggsave("amil_natural_model.pdf",amil_comp2, height = 4, width = 8)
+
+
+
+
+```
+
+```{r Porites massive}
+
+
+
+Pmas <-alldata %>% filter(Species =="Pmas")  %>% filter(Area_2021>20)
+  
+
+
+newdata <- with(Pmas, list(log21 = seq(min(log21), max(log21), length=10),
+                              Species = factor(unique(Species))))
+
+
+growth <- emmeans(pmasopt, ~log21, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Porites massive") 
+
+growthplotpmas <- growth %>% filter(Species == "Porites massive") %>%
+  ggplot(aes(y = emmean, x = log21, group=1)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD), alpha = 0.3, colour = NA) + 
+  geom_line(group=1) +
+  theme_classic()  +
+  ylab(bquote("log area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("log area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) #+
+  geom_point(data = Pmas%>% filter(AreaChange>-1500), mapping = aes(x = log21, y = log22), alpha=0.1)
+
+
+growthplotpmas
+
+
+growthplotpmasnatural <- growth %>% filter(Species == "Porites massive") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), group=1)) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line(group=1) + theme_classic()  + ylab(bquote("Area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("Area"~( cm^2)~"at t"[0])) + ggplot2::geom_abline(intercept = 0, slope=1) + geom_point(data = Pmas %>% filter(AreaChange>-1500), mapping = aes(x = exp(log21), y = exp(log22)), alpha = 0.1)
+
+growthplotpmasnatural
+
+
+pmas_both <- ggarrange(growthplotpmas, growthplotpmasnatural)
+
+pmas_both
+#ggsave("growth_pmas_both.pdf", pmas_both, height = 3, width =6)
+
+#ggsave("growth_pmas_natural.pdf", growthplotpmasnatural, height = 3.5, width =6.5)
+#ggsave("growth_pmas_natural_insert.pdf", growthplotpmasnatural_insert, height = 3.5, width =6.5)
+
+#ggsave("growth_pmas_log_nopoints.pdf", growthplotpmas, height = 2, width =3.5)
+
+```
+
+```{r Platygyra}
+
+
+platy <-alldata %>% filter(Species =="Plat") %>% filter( Area_2021>20)
+  
+newdata <- with(platy, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species))))
+
+growth <- emmeans(platopt, ~log21, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Platygyra spp") 
+
+
+growthplotplaty <- growth %>% filter(Species == "Platygyra spp") %>%
+  ggplot(aes(y = emmean, x = log21)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() +
+    ylab(bquote("log area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("log area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1)+
+  geom_point(data = platfull %>% filter(Area_2021>20), mapping = aes(x = log21, y = log22), alpha = 0.1)
+
+
+growthplotplatynatural <- growth %>% filter(Species == "Platygyra spp") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21))) +
+ geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() +  
+  ylab(bquote("Area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("Area"~( cm^2)~"at t"[0]))  +
+  ggplot2::geom_abline(intercept = 0, slope=1) +
+  geom_point(data = platy, mapping = aes(x = exp(log21), y = exp(log22)), alpha = 0.1)
+
+growthplotplatynatural
+
+
+
+#ggsave("platy_natural.pdf", growthplotplatynatural, height = 3.5, width =6.5)
+#ggsave("platy_insert.pdf", platy_insert, height = 3, width =5)
+
+platy_both <- ggarrange(growthplotplaty, growthplotplatynatural)
+platy_both
+
+#ggsave("platy_both.pdf", platy_both, height = 3, width = 6)
+
+```
+
+```{r Goniastrea}
+
+
+goni <-alldata %>% filter(Species =="Gspp") %>% filter(Area_2021>20)
+
+newdata <- with(goni, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species))))
+
+
+growth <- emmeans(goniopt, ~log21, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Goniastrea spp") 
+
+growthplotgoni <- growth %>% filter(Species == "Goniastrea spp") %>%
+  ggplot(aes(y = emmean, x = log21, group=1)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD), alpha = 0.3, colour = NA) + 
+  geom_line(group=1) + theme_classic()  +
+  ylab(bquote("log area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("log area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) + 
+  geom_point(data = goni %>% filter(growth_abs_year>-2000), mapping = aes(x = log21, y = log22), alpha=0.2)+
+  coord_cartesian(xlim=c(3,7))
+
+growthplotgoni
+
+growthplotgoninatural <- growth %>% filter(Species == "Goniastrea spp") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), group=1)) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line(group=1) + 
+  theme_classic()  +
+  ylab(bquote("Area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("Area"~( cm^2)~"at t"[0]))  +
+  ggplot2::geom_abline(intercept = 0, slope=1) + 
+  geom_point(data = goni %>% filter(growth_abs_year>-2000), mapping = aes(x = Area_2021, y = Area_2022), alpha=0.2) 
+
+growthplotgoninatural
+
+#ggsave("Goniastrea_size.pdf", growthplotgoni, height = 3.5, width = 6)
+
+
+growthplotgoninatural_insert <- growth %>% filter(Species == "Goniastrea spp") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), group=1)) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line(group=1) + theme_classic()  + ylab(bquote("size at time t"[1]~( cm^2))) + xlab (bquote("size at time t"[0]~( cm^2)))+ ggplot2::geom_abline(intercept = 0, slope=1) + coord_cartesian(xlim=c(0,500), ylim=c(0,500))
+
+growthplotgoninatural
+
+#ggsave("Goniastrea_size_insert.pdf", growthplotgoninatural_insert, height = 3.5, width = 6)
+
+#Use the interaction models
+goni_both <- ggarrange(growthplotgoni, growthplotgoninatural)
+goni_both
+
+#ggsave("Goniastrea_rawandnatural.pdf", goni_both, height = 3, width = 6)
+
+
+```
+```{r Pocillopora}
+
+
+
+poci <- pocifull %>% filter( Area_2021>20) 
+
+
+
+newdata <- with(poci, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species)), ubedmean = seq(min(0.1), max(0.3), length=2)))
+
+growth <- emmeans(pociopt, ~log21|ubedmean, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Pocillopora spp.") %>% mutate(ubedmean=factor(ubedmean))
+
+colours_bs <- c("darkgreen", "green")
+
+growthplotpoci <- growth %>% filter(Species == "Pocillopora spp.") %>%
+  ggplot(aes(y = emmean, x = log21, colour = ubedmean)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD, fill=ubedmean), alpha = 0.3, colour = NA) + 
+  geom_line() + 
+  theme_classic() +
+  scale_colour_manual(values = colours_bs) +
+  scale_fill_manual(values = colours_bs) +
+  ylab(bquote('log size at t1'~ (cm^2)))+ 
+  xlab(bquote('log size at t0'~ (cm^2))) + 
+  coord_cartesian(xlim=c(3,8), ylim = c(3,8))+
+  ggplot2::geom_abline(intercept = 0, slope=1) #+  geom_point(data = poci %>% filter(growth_abs_year>-2000), mapping = aes(x = log21, y = log22), alpha=0.2)
+
+growthplotpoci
+
+#ggsave("poci_natural_ubed.pdf", growthplotpoci2natural, height=3.5, width = 6.5)
+
+growthplotpocinatural <- growth %>% filter(Species == "Pocillopora spp.") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21), colour = ubedmean)) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD), fill=ubedmean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_bs) + scale_fill_manual(values = colours_bs) + ylab(bquote('log size at t1'~ (cm^2)))+ xlab(bquote('log size at t0'~ (cm^2))) + ggplot2::geom_abline(intercept = 0, slope=1)+ coord_cartesian(xlim=c(0,1000), ylim=c(0,1000))
+growthplotpocinatural
+
+ggsave("poci_natural_ubed_insert.pdf", growthplotpoci2natural_insert, height=3, width = 5)
+
+growthplotpoci2 <- growth %>% filter(Species == "Pocillopora spp.") %>%
+  ggplot(aes(y = emmean, x = log21, colour = ubedmean)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD, fill=ubedmean), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + scale_colour_manual(values = colours_bs) + scale_fill_manual(values = colours_bs) + ylab(bquote('log size at t1'~ (cm^2)))+ xlab(bquote('log size at t0'~ (cm^2))) + ggplot2::geom_abline(intercept = 0, slope=1) + coord_cartesian(xlim=c(3,7), ylim=c(3,7))
+
+growthplotpoci2
+
+rawplotpoci <- acorfull %>% filter( Area_2021>20) %>% filter(!is.na(ubedmean)) %>% ggplot(aes(x=log21, y= log22, colour = ubedmean)) + 
+  geom_point(alpha = 0.5) + 
+  scale_colour_gradient(low = "darkgreen", high = "green") +
+  geom_abline(slope = 1) +
+  theme_classic() +
+  coord_cartesian(xlim = c(3,8.5), ylim = c(3,8.5)) + 
+  ylab(bquote('log size at t1'~ (cm^2)))+ 
+  xlab(bquote('log size at t0'~ (cm^2))) 
+
+rawplotpoci
+
+poci_composite <- ggpubr::ggarrange(growthplotpoci, rawplotpoci)
+poci_composite
+
+poci_composite2 <- ggpubr::ggarrange(growthplotpocinatural, rawplotpoci)
+poci_composite2
+
+
+
+#ggsave("pocilloporanatural.pdf", poci_composite2, height = 4, width = 8)
+
+```
+
+```{r}
+
+summary(Spis_model)
+
+spis <-alldata %>% filter(Species =="Spis") %>% filter(Area_2021>20)
+  
+newdata <- with(spis, list(log21 = seq(min(log21), max(log21), length=20),
+                              Species = factor(unique(Species))))
+
+growth <- emmeans(spisopt, ~log21, at = newdata) %>%
+  as.data.frame() %>% mutate(Species = "Stylophora pistillata") 
+
+
+growthplotspis <- growth %>% filter(Species == "Stylophora pistillata") %>%
+  ggplot(aes(y = emmean, x = log21)) +
+  geom_ribbon(aes(ymin=lower.HPD,ymax=upper.HPD), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + 
+   ylab(bquote("log area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("log area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) +
+  geom_point(data = spisfull %>% filter (Area_2021 <2000 & Area_2021 >20), aes(x= log21, y=log22), alpha = 0.1) +
+  coord_cartesian(xlim = c(3,7), ylim =c(3,7))
+
+growthplotspis
+ggsave("spis_log.pdf", growthplotspis, height = 3.5, width =6.5)
+
+growthplotspisnatural <- growth %>% filter(Species == "Stylophora pistillata") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21))) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic()  + 
+  ylab(bquote("Area"~( cm^2)~"at t"[1])) + 
+  xlab(bquote("Area"~( cm^2)~"at t"[0])) + 
+  ggplot2::geom_abline(intercept = 0, slope=1) +
+  geom_point(data = spisfull %>% filter(Area_2021>20), mapping = aes(x = Area_2021, y = Area_2022), alpha=0.2)
+
+growthplotspisnatural
+
+growthplotspisnatural_insert <- growth %>% filter(Species == "Stylophora pistillata") %>%
+  ggplot(aes(y = exp(emmean), x = exp(log21))) +
+  geom_ribbon(aes(ymin=exp(lower.HPD),ymax=exp(upper.HPD)), alpha = 0.3, colour = NA) + 
+  geom_line() + theme_classic() + ylab(bquote("log size at time t"[1]~( cm^2))) + xlab (bquote("log size at time t"[0]~( cm^2)))+ ggplot2::geom_abline(intercept = 0, slope=1) + coord_cartesian(ylim=c(0,1000), xlim = c(0,1000))
+
+growthplotspisnatural_insert
+
+spisboth <- ggarrange(growthplotspis, growthplotspisnatural) 
+#ggsave("spisboth.pdf", spisboth, height = 4, width = 8)
+
+```
+
+
+
+```{r list}
+
+ggmassive <- ggarrange(pmas_both,platy_both,goni_both, nrow=3)
+ggmassive
+
+#ggsave("massivesall.pdf", ggmassive, height = 8, width = 8)
+
+patchwork::wrap_plots(pmas_both, platy_both, goni_both, nrow=3)
+
+```
+
+```{r summarise mortality}
+
+
+
+deadorgone$mort <- as.integer(deadorgone$partial_mort) # rename partial mort to mort
+
+# Define the size categories
+size_bins <- cut(deadorgone$Area_2021,
+                 breaks = c(-Inf, 20, 80, 314, 707, 1256, Inf), # Corresponding to diameters
+                 labels = c("<=19","20-80", "81-314", "315-706", "707-1256", ">1257"))
+
+# Calculate mortality proportions by species and size category
+mortality_proportions <- deadorgone %>%
+  mutate(size_category = size_bins) %>%  # Create a new column for size categories
+  group_by(Species, size_category) %>%   # Group by species and size category
+  summarise(proportion_died = mean(partial_mort == TRUE, na.rm = TRUE)) %>%  # Calculate the proportion that died
+  pivot_wider(names_from = size_category, values_from = proportion_died)     # Reshape to wide format
+
+# Calculate overall mortality for each species (across all size categories)
+overall_species_mortality <- deadorgone %>%
+  group_by(Species) %>%
+  summarise(overall_mortality = mean(partial_mort == TRUE, na.rm = TRUE))
+
+# Join the species-specific proportions with overall mortality rate
+mortality_proportions <- mortality_proportions %>%
+  left_join(overall_species_mortality, by = "Species")  # Add the overall mortality rate as a new column
+
+# Calculate overall mortality proportions (without species breakdown)
+total_mortality <- deadorgone %>%
+  mutate(size_category = size_bins) %>%
+  group_by(size_category) %>%
+  summarise(proportion_died = mean(partial_mort == TRUE, na.rm = TRUE)) %>%
+  pivot_wider(names_from = size_category, values_from = proportion_died) %>%
+  mutate(Species = "Total", overall_mortality = mean(deadorgone$partial_mort == TRUE, na.rm = TRUE))  # Add "Total" row with overall mortality rate
+
+# Combine the species-specific proportions and the total proportions
+final_result <- bind_rows(mortality_proportions, total_mortality)
+
+# View the final result
+final_result
+
+size_bins <- cut(deadorgone$Area_2021,
+                 breaks = c(-Inf, 20, 80, 314, 707, 1256, Inf),
+                 labels = c("<=19", "20-80", "81-314", "315-706", "707-1256", ">1257"))
+
+# Calculate mortality proportions and standard errors by species and size category
+mortality_proportions <- deadorgone %>%
+  mutate(size_category = size_bins) %>%  # Create a new column for size categories
+  group_by(Species, size_category) %>%   # Group by species and size category
+  summarise(
+    proportion_died = mean(partial_mort == TRUE, na.rm = TRUE),                      # Proportion that died
+    n = sum(!is.na(partial_mort)),                                                  # Count of observations
+    se_proportion_died = sqrt(proportion_died * (1 - proportion_died) / n)          # Standard error of proportion
+  ) %>%
+  pivot_wider(names_from = size_category, values_from = c(proportion_died, se_proportion_died))  # Reshape to wide format
+
+# Calculate overall mortality and standard error for each species (across all size categories)
+overall_species_mortality <- deadorgone %>%
+  group_by(Species) %>%
+  summarise(
+    overall_mortality = mean(partial_mort == TRUE, na.rm = TRUE),                    # Overall mortality rate for the species
+    n = sum(!is.na(partial_mort)),                                                  # Count of observations for standard error
+    overall_se_mortality = sqrt(overall_mortality * (1 - overall_mortality) / n)    # Standard error of overall mortality
+  )
+
+#Join species-specific proportions with overall mortality rate and its SE
+mortality_proportions <- mortality_proportions %>%
+  dplyr::left_join(overall_species_mortality %>% dplyr::select(Species, overall_mortality, overall_se_mortality), by = "Species")
+
+# Calculate overall mortality proportions and standard error (without species breakdown)
+total_mortality <- deadorgone %>%
+  mutate(size_category = size_bins) %>%
+  group_by(size_category) %>%
+  summarise(
+    proportion_died = mean(partial_mort == TRUE, na.rm = TRUE),                      # Overall proportion for each size category
+    n = sum(!is.na(partial_mort)),                                                  # Count of observations for SE
+    se_proportion_died = sqrt(proportion_died * (1 - proportion_died) / n)          # Standard error of the proportion
+  ) %>%
+  pivot_wider(names_from = size_category, values_from = c(proportion_died, se_proportion_died)) %>%
+  mutate(Species = "Total", 
+         overall_mortality = mean(deadorgone$partial_mort == TRUE, na.rm = TRUE),    # Overall mortality rate across all species and sizes
+         overall_se_mortality = sqrt(overall_mortality * (1 - overall_mortality) / sum(!is.na(deadorgone$partial_mort))))  # SE for overall mortality
+
+# Combine the species-specific proportions and the total proportions
+final_result2 <- bind_rows(mortality_proportions, total_mortality)
+
+# View the final result
+final_result2
+
+
+
+```
+
+```{r}
+library (gbm)
+library (dismo)
+library (ggBRT)
+
+```
+deadorgone <- deadorgone %>% rename(mort = partial_mort)
+
+
+```{r BRT fitting the likelihood of a colony experiencing mortality or disappearing altogether between years}
+
+
+
+set.seed(1) # option to set a seed number (no need for loop routine)
+
+#create objects with model parameter options for optimization loop (i.e. tree complexity, learning rate, bag fraction)
+tc<-c(1,2,3,4,5)
+lr<-c(0.01, 0.001, 0.0001)
+bf<-c(0.5, 0.7, 0.8)
+
+#create objects to hold model output options
+opt.results.modeldev<-array(data = NA, dim = 60)
+opt.results.cvdev<-array(data = NA, dim = 60)
+opt.results.cvdevse<-array(data = NA, dim = 60)
+
+dim(opt.results.modeldev)<- c(5,4,3)
+dim(opt.results.cvdev)<- c(5,4,3)
+dim(opt.results.cvdevse)<- c(5,4,3)
+
+best.cvdev<-999999
+best.params<-c(999,999,999)
+
+start.time<- date()  #record the start time
+
+
+### initiate a loop routine for the gbm function ###
+
+for (i in 1:5) 
+{
+  for (j in 1:3)
+  	{
+    for (k in 1:3)
+    	{
+      	model.fitted <- gbm.step(data = deadorgone,
+			gbm.x = c("Species", "Area_2021", "PAR_mean", "temp_mean", 
+              "hard_coral_21", "Quad.Rugosity..plane.", 
+              "FD_Rugosity_Plane", "habitat", "depth", "Turbidity_mean", "Quad.Fitted.Slope" ),
+    gbm.y = "mort",
+			family = "bernoulli",
+			tree.complexity = tc[i],
+			learning.rate = lr[j],
+			bag.fraction = bf[k], max.trees=40000)
+		
+			#skip instances where model does not successfully run with parameter combination
+			if(!is.null (model.fitted))
+			
+			#write model cv devience to temp object
+			{
+			tmp<-model.fitted$cv.statistics$deviance.mean
+			opt.results.cvdev[i,j,k]<-tmp
+			if (tmp < best.cvdev ) 
+				{
+				best.cvdev<-tmp
+				best.params[1]<-tc[i]
+				best.params[2]<-lr[j]
+				best.params[3]<-bf[k]				
+				}
+      		}
+      	}
+	}
+}
+#record end time
+end.time<-date()
+#############################
+
+#display optimal model parameters (i.e. tree complexity, learning rate, bag fraction)
+opt.results.cvdev
+best.cvdev
+best.params
+
+#display start and end times
+start.time
+end.time
+
+
+
+```
+
+Run the optimal model, best version includes the parameters already listed below 
+
+```{r}
+
+Opt <- gbm.step(data=deadorgone,
+			gbm.x = c("Species", "Area_2021", "PAR_mean", "temp_mean", 
+              "hard_coral_21", "Quad.Rugosity..plane.", 
+              "FD_Rugosity_Plane", "habitat", "depth", "Turbidity_mean", "Quad.Fitted.Slope" ),
+    gbm.y = "mort",
+			family = "bernoulli",
+			tree.complexity = 5,
+			learning.rate = 0.01,
+			bag.fraction = 0.7, max.trees=40000)
+
+```
+
+```{r}
+ggPerformance(Opt)
+ggPD(Opt)
+```
+
+
+```{r}
+
+# Assuming `gbm_model` is your fitted gbm model
+# Example: gbm_model <- gbm(response ~ ., data = your_data, distribution = "bernoulli", n.trees = 1000)
+
+# Function to plot PDPs in a single plot, ordered by importance
+plot_pdp_in_single_plot <- function(gbm_model, n_trees = gbm_model$n.trees, pdf_file = "pdp_combined_plot.pdf") {
+  
+  # Get feature importance and order features by importance
+  feature_importance <- summary(gbm_model, plotit = FALSE)
+  ordered_features <- feature_importance$var[order(-feature_importance$rel.inf)]
+  
+  # Open a PDF device in the Data folder
+  pdf(here("Data", pdf_file), width = 10, height = 8)  # Adjust dimensions as needed
+  
+  # Set up layout to fit all plots into one page
+  num_features <- length(ordered_features)
+  grid_size <- ceiling(sqrt(num_features))  # Create a roughly square grid
+  par(mfrow = c(grid_size, grid_size), mar = c(4, 4, 2, 1))  # Adjust margins to fit plots
+
+  # Loop over each feature in order of importance and plot PDP
+  for (feature in ordered_features) {
+    # Extract PDP values on the logit scale
+    pd_data <- plot(gbm_model, i.var = feature, n.trees = n_trees, return.grid = TRUE)
+    
+    # Transform logit values to probability scale
+    pd_data$y <- 1 / (1 + exp(-pd_data$y))
+    
+    # Plot each PDP on the probability scale
+    plot(pd_data[[feature]], pd_data$y, type = "l", 
+         xlab = paste(feature, "(", 
+                      round(feature_importance$rel.inf[feature_importance$var == feature], 2),"%)"),  
+         ylab = "Partial Dependence (Probability)",
+         ylim = c(0, 0.15),
+         cex.main = 0.8)
+  }
+  
+  # Close the PDF device
+  dev.off()
+  
+  # Reset layout parameters
+  par(mfrow = c(1, 1))
+}
+
+# Example usage
+plot_pdp_in_single_plot(Opt, pdf_file = "pdp_combined_plot.pdf")
+
+```
+
+
