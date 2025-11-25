@@ -1,77 +1,119 @@
-This README explains the format of the datasets deadorgone and alldata_full, most of which are identical. 
+<h1>Dataset Description: <code>deadorgone</code> and <code>alldata_full</code></h1>
 
-The description of each column is as follows:
+<p>
+This README explains the structure and meaning of the datasets 
+<strong><code>deadorgone</code></strong> and <strong><code>alldata_full</code></strong>.
+Most columns are identical between datasets.
+</p>
 
-Species - The 4-letter code desribing the taxonomic identity of each species. Where species identification was not possible, some groups of species were aggregated into morphotaxa, which are as follows:
+<h2>Column Descriptions</h2>
 
-Atab : Tabular Acopora
-Poci : Branching Pocillopora (damicornis and verrucosa)
-Adgt : Acropora digitate
-Spis : Stylophora pistillata
-Pmas : Porites massive
-Gspp : Goniastrea spp (submassive)
-Plat : Platygyra spp (submassive)
-Acor : Corymbose Acropora
+<h3>Species</h3>
+<p>
+The 4-letter taxonomic code describing the identity of each coral species.
+Where identification was not possible, species were grouped into morphotaxa:
+</p>
 
-temp_mean - Average daily temperature (degrees celcius) over the period, derived from eReefs
-ubedmean - Near bet water velocity (m/s) based on the Callaghan wave model, in 15x15m grid cells, extracted over the sampling period from 2021-2022
-Turbidity_mean - Nephelometric Turbidity Units, expressed as daily average estimates from the period 1 Jan 2015 to 1 Jan 2021
-rugosity - Plot level rugosity of 3D models of each plot, relative to a plane of best fit
-Depth - Shallow (3-5m) or Deep (13-15m) depth category
-Plot_ID - Unique identifier for each individual 12x6m plot
-Area_2022 - 2D planar colony area in 2022 in square cm
-Area_2021 - 2D planar colony area in 2021 in square cm
-return_months - return time (to the nearest month)
-shelf_position - denotes whether the plot was inshore, offshore, or in the Torres Strait
-habitat - categorical variable. Front = Exposed, Back = sheltered, flank = moderately exposed to prevailing wave direction
-region - Latidute of sites, either Central, Northern, Southern or Torres Strait
-reef - Reef name
-FD_Rugosity_Plane - Fractal dimension of rugosity, adjusted to the plane of best fit for each 3D model of the 12x6m plot
-PAR_mean - Photosynthetically active ratiation, expressed as PAR; mol photon m-2 s-1 averaged over the period 1 Jan 2015 to 1 Jan 2021
-site - Unique classifier for each individual 12x6m plot
-hard_coral_21 - Plot level hard coral coverage in 2021 (first year of sampling)
-mothlygrowth - Monthly 2D planar growth rate in square centimeters (not used in any analyses)
-yearlygrowth - Annualised 2D planar growth rate in square centimeters (not used in any analyses)
-area_2022_adjusted - Adjusted area in 2022 to account for differences in return time for each reef
-log22 - log-transformed (base e) of 2D colony area (square centimeters) in year 1
-log21 - log-transformed (base e) of 2D colony area (square centimeters) in year 2
-log22_adj - log-transformed (base e) of 2D colony area (square centimeters) in year 2 adjusted to account for differences in return time for each reef
+<table>
+<thead>
+<tr><th>Code</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Atab</strong></td><td>Tabular Acropora</td></tr>
+<tr><td><strong>Poci</strong></td><td>Branching Pocillopora (damicornis &amp; verrucosa)</td></tr>
+<tr><td><strong>Adgt</strong></td><td>Acropora digitate</td></tr>
+<tr><td><strong>Spis</strong></td><td>Stylophora pistillata</td></tr>
+<tr><td><strong>Pmas</strong></td><td>Porites massive</td></tr>
+<tr><td><strong>Gspp</strong></td><td>Goniastrea spp (submassive)</td></tr>
+<tr><td><strong>Plat</strong></td><td>Platygyra spp (submassive)</td></tr>
+<tr><td><strong>Acor</strong></td><td>Corymbose Acropora</td></tr>
+</tbody>
+</table>
 
-Important: EcoRRAP abbreviations for habitat types and cluster / reef names
+<h3>Environmental &amp; Colony Metrics</h3>
+<ul>
+<li><strong>temp_mean</strong> – Average daily temperature (°C) derived from eReefs.</li>
+<li><strong>ubedmean</strong> – Near-bed water velocity (m/s) from the Callaghan wave model.</li>
+<li><strong>Turbidity_mean</strong> – NTU, daily averages from 1 Jan 2015 – 1 Jan 2021.</li>
+<li><strong>rugosity</strong> – Plot-level rugosity from 3D models relative to a plane of best fit.</li>
+<li><strong>Depth</strong> – Shallow (3–5 m) or Deep (13–15 m).</li>
+<li><strong>Plot_ID</strong> – Unique ID for each 12×6 m plot.</li>
+<li><strong>Area_2022</strong> – Colony planar area in 2022 (cm²).</li>
+<li><strong>Area_2021</strong> – Colony planar area in 2021 (cm²).</li>
+<li><strong>return_months</strong> – Return time (nearest month).</li>
+<li><strong>shelf_position</strong> – Inshore, offshore, or Torres Strait.</li>
+<li><strong>habitat</strong> – Front (exposed), Back (sheltered), Flank (moderately exposed).</li>
+<li><strong>region</strong> – Central, Northern, Southern, or Torres Strait.</li>
+<li><strong>reef</strong> – Reef name.</li>
+<li><strong>FD_Rugosity_Plane</strong> – Fractal dimension of rugosity adjusted to plane.</li>
+<li><strong>PAR_mean</strong> – Average PAR (mol photon m⁻² s⁻¹), 2015–2021.</li>
+<li><strong>site</strong> – Unique plot code.</li>
+<li><strong>hard_coral_21</strong> – Hard coral cover in 2021.</li>
+</ul>
 
-EcoRRAP Abbreviations
+<h3>Growth Metrics (not used in analyses)</h3>
+<ul>
+<li><strong>mothlygrowth</strong> – Monthly 2D growth (cm²).</li>
+<li><strong>yearlygrowth</strong> – Annualised 2D growth (cm²).</li>
+</ul>
 
-Clusters:
- - CB: Capricorn Bunkers
- - KE: Keppel Islands
- - OC: Offshore Central
- - PA: Palm Islands
- - ON: Offshore Northern
- - TS: Torres Strait
+<h3>Adjusted &amp; Transformed Area Metrics</h3>
+<ul>
+<li><strong>area_2022_adjusted</strong> – Area adjusted for variation in return time.</li>
+<li><strong>log22</strong> – ln(area in year 2).</li>
+<li><strong>log21</strong> – ln(area in year 1).</li>
+<li><strong>log22_adj</strong> – ln(adjusted area in year 2).</li>
+</ul>
 
-Reefs: 
- - LM: Lady Musgrave
- - HE: Heron Island
- - HW: Halfway Island (Keppel Island group)
- - GK: Greak Keppel Island
- - MD: Middle Island (Keppel Island group)
- - ML: Miall Island (Keppel Island group)
- - NK: North Keppel Island
- - DA: Davies Reef
- - LB: Little Broadhurst Reef
- - CH: Chicken Reef
- - OR: Orpheus Island
- - PE: Pelorus Island
- - MO: Moore Reef
- - LI: Lizard Island
- - AU: Aukane Island
- - DU: Dungeness Reef
- - MA: Masig Island
+<h2>EcoRRAP Abbreviations</h2>
 
-Habitats (numbers associated with habitat abbreviation indicate multiple sites of a habitat type within a reef, e.g. BA1 is 'back 1' while BA2 is 'back 2'):
- - BA: back
- - FL: flank
- - FR: front
- - LA: lagoon
+<h3>Clusters</h3>
+<ul>
+<li><strong>CB</strong> – Capricorn Bunkers</li>
+<li><strong>KE</strong> – Keppel Islands</li>
+<li><strong>OC</strong> – Offshore Central</li>
+<li><strong>PA</strong> – Palm Islands</li>
+<li><strong>ON</strong> – Offshore Northern</li>
+<li><strong>TS</strong> – Torres Strait</li>
+</ul>
 
- - Thus, CBLM_FR1 would be Cluster: Capricorn Bunkers, Reef: Lady Musgrave, Habitat: Front, Plot: 1
+<h3>Reefs</h3>
+<ul>
+<li><strong>LM</strong> – Lady Musgrave</li>
+<li><strong>HE</strong> – Heron Island</li>
+<li><strong>HW</strong> – Halfway Island (Keppel)</li>
+<li><strong>GK</strong> – Great Keppel Island</li>
+<li><strong>MD</strong> – Middle Island (Keppel)</li>
+<li><strong>ML</strong> – Miall Island (Keppel)</li>
+<li><strong>NK</strong> – North Keppel Island</li>
+<li><strong>DA</strong> – Davies Reef</li>
+<li><strong>LB</strong> – Little Broadhurst Reef</li>
+<li><strong>CH</strong> – Chicken Reef</li>
+<li><strong>OR</strong> – Orpheus Island</li>
+<li><strong>PE</strong> – Pelorus Island</li>
+<li><strong>MO</strong> – Moore Reef</li>
+<li><strong>LI</strong> – Lizard Island</li>
+<li><strong>AU</strong> – Aukane Island</li>
+<li><strong>DU</strong> – Dungeness Reef</li>
+<li><strong>MA</strong> – Masig Island</li>
+</ul>
+
+<h3>Habitats</h3>
+<p>(Numbers indicate multiple sites at the same reef: e.g., BA1 = Back 1)</p>
+<ul>
+<li><strong>BA</strong> – Back</li>
+<li><strong>FL</strong> – Flank</li>
+<li><strong>FR</strong> – Front</li>
+<li><strong>LA</strong> – Lagoon</li>
+</ul>
+
+<h3>Example Code</h3>
+<p>
+A code such as <code>CBLM_FR1</code> breaks down as:
+</p>
+<ul>
+<li><strong>CB</strong> – Capricorn Bunkers</li>
+<li><strong>LM</strong> – Lady Musgrave</li>
+<li><strong>FR</strong> – Front</li>
+<li><strong>1</strong> – Plot number 1</li>
+</ul>
